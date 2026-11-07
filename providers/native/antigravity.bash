@@ -74,6 +74,32 @@ fetch_antigravity_native() {
     fi
 
     local seen_emails=" "
+
+    # Fast path: query running local language_server if available. When the
+    # Antigravity IDE is open, loopback Connect-RPC returns live quotas with zero
+    # network overhead and without requiring OAuth token refreshes.
+    : > "$tmp_body"
+    if antigravity_try_local_rpc "$tmp_body" "$endpoint" 2>/dev/null; then
+      if jq -e '(.groups | type) == "array"' "$tmp_body" >/dev/null 2>&1; then
+        local local_email=""
+        if [ -z "${ANTIGRAVITY_STATE_DB:-}" ]; then
+          if command -v secret-tool >/dev/null 2>&1; then
+            local_email="$(timeout 2 secret-tool lookup service gemini username antigravity 2>/dev/null | extract_antigravity_keyring_account || true)"
+            if [ -z "$local_email" ] || [ "$local_email" = "Antigravity CLI" ]; then
+              for s in "${ANTIGRAVITY_KEYRING_SERVICE:-Antigravity CLI}" "antigravity-cli" "Antigravity"; do
+                local_email="$(timeout 2 secret-tool lookup service "$s" 2>/dev/null | extract_antigravity_keyring_account || true)"
+                [ -n "$local_email" ] && [ "$local_email" != "Antigravity CLI" ] && break
+              done
+            fi
+          fi
+        fi
+        [ -n "$local_email" ] && [ "$local_email" != "Antigravity CLI" ] || local_email="Antigravity account"
+        if antigravity_append_group_account "$accounts_file" "$tmp_body" "Antigravity" "$local_email" "IDE Local RPC"; then
+          seen_emails="$seen_emails$local_email "
+        fi
+      fi
+    fi
+
     if [ "${#dbs[@]}" -gt 0 ]; then
       for db in "${dbs[@]}"; do
         install="$(printf '%s' "$db" | sed -E 's#.*/\.config/([^/]+)/User/.*#\1#')"
@@ -192,6 +218,20 @@ fetch_antigravity_native() {
           | sort_by( - ( [.windows[].usedPercent] | max // 0 ) )
           | .[0]) as $lead
         | ($accts | length) as $n
+        | (
+            ($lead.windows | map(select(.window == "5h")) | first)
+            // ($lead.windows | sort_by(-.usedPercent) | first)
+            // null
+          ) as $primary_win
+        | (
+            ($lead.windows | map(select(.window == "weekly")) | first)
+            // ($lead.windows | map(select(. != $primary_win)) | sort_by(-.usedPercent) | first)
+            // null
+          ) as $secondary_win
+        | (
+            ($lead.windows | map(select(. != $primary_win and . != $secondary_win)) | sort_by(-.usedPercent) | first)
+            // null
+          ) as $tertiary_win
         | {
             provider:"antigravity",
             source:"antigravity-internal",
@@ -199,9 +239,9 @@ fetch_antigravity_native() {
               identity:{providerID:"antigravity", accountEmail:$lead.email, loginMethod:$lead.loginMethod},
               accountEmail:$lead.email,
               loginMethod:$lead.loginMethod,
-              primary:(($lead.windows | sort_by(-.usedPercent))[0] // null),
-              secondary:(($lead.windows | sort_by(-.usedPercent))[1] // null),
-              tertiary:(($lead.windows | sort_by(-.usedPercent))[2] // null),
+              primary:$primary_win,
+              secondary:$secondary_win,
+              tertiary:$tertiary_win,
               updatedAt:(now | todateiso8601)
             },
             accounts:$accts,

@@ -217,8 +217,17 @@ extract_antigravity_keyring_token() {
 
 extract_antigravity_keyring_account() {
   jq -r '
+    def email_from_jwt($jwt):
+      if ($jwt | type == "string" and ($jwt | contains("."))) then
+        (($jwt | split(".")[1]) as $p
+         | ($p + ("=" * ((4 - ($p | length) % 4) % 4)))
+         | gsub("[-_]"; if . == "-" then "+" else "/" end)
+         | @base64d | fromjson? | .email // empty)
+      else empty end;
     if type == "object" then
-      .email // .account_email // (.token.email // .token.account_email // empty) // "Antigravity CLI"
+      .email // .account_email // (.token.email // .token.account_email // empty)
+      // email_from_jwt(.id_token // .token.id_token // "")
+      // "Antigravity CLI"
     else
       "Antigravity CLI"
     end
@@ -316,7 +325,7 @@ antigravity_email_from_idtoken() {
 # with a per-week and per-5-hour cap, surfacing the one closest to its limit),
 # their reset times and human "Quota resets in …" strings.
 antigravity_account_json() {
-  jq -c --arg install "$1" --arg email "$2" --arg login "$3" '
+  jq -c --arg install "$1" --arg email "$2" --arg login "$3" --arg include_all "${ANTIGRAVITY_INCLUDE_ALL_GROUPS:-0}" '
     def clamp: if type != "number" then 0 elif . < 0 then 0 elif . > 1 then 1 else . end;
     def num: (tonumber? // null);
     def fam: (.displayName // .bucketId // "Model") | gsub("\\s*\\([^)]*\\)\\s*$"; "");
@@ -344,6 +353,7 @@ antigravity_account_json() {
       [
         .groups[]? as $g
         | group_label($g) as $gl
+        | select(($include_all == "1") or ($gl | test("^Gemini Models|Gemini"; "i") and ($gl | test("Argon"; "i") | not)))
         | $g.buckets[]?
         | (window_kind) as $kind
         | select($kind != null)
