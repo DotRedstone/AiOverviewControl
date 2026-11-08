@@ -106,7 +106,7 @@ chmod +x "$TMP/bin/pgrep" "$TMP/bin/ss" "$TMP/bin/curl"
 out="$(PATH="$TMP/bin:$PATH" ANTIGRAVITY_STATE_DB="$TMP/antigravity-state.vscdb" \
   ANTIGRAVITY_ALLOW_LOCAL_RPC=1 ANTIGRAVITY_PROC_DIR="$TMP/proc" \
   bash "$ROOT/providers/get-provider-usage" antigravity '')"
-jq -e '.[0].error == null and .[0].usage.primary.group == "Gemini Models" and .[0].usage.primary.window == "5h" and .[0].usage.primary.usedPercent == 20 and (.[0].accounts[0].windows | length) == 2' <<<"$out" >/dev/null \
+jq -e '.[0].error == null and .[0].usage.primary.group == "Gemini Models" and .[0].usage.primary.window == "5h" and .[0].usage.primary.usedPercent == 20 and .[0].usage.secondary.group == "Gemini Models" and .[0].usage.tertiary == null and (.[0].accounts[0].windows | length) == 3 and ([.[0].accounts[0].windows[].group] | index("Gemini 4 Argon")) != null' <<<"$out" >/dev/null \
   || fail "local Connect-RPC fast path failed: $out"
 ! grep -q 'csrf-fixture-secret' <<<"$out" || fail "CSRF token leaked into output"
 echo 'OK: Antigravity fixture, transport, and token refresh coverage'

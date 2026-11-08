@@ -218,20 +218,19 @@ fetch_antigravity_native() {
           | sort_by( - ( [.windows[].usedPercent] | max // 0 ) )
           | .[0]) as $lead
         | ($accts | length) as $n
+        | ($lead.windows | map(select(((.group // .name // "") | test("gemini"; "i")) and (((.group // .name // "") | test("argon"; "i")) | not)))) as $gemini_windows
         | (
-            ($lead.windows | map(select(.window == "5h")) | first)
-            // ($lead.windows | sort_by(-.usedPercent) | first)
-            // null
+            ($gemini_windows | map(select(.window == "5h")) | first)
+            // ($gemini_windows[0] // null)
+            // ($lead.windows | map(select(.window == "5h")) | first)
+            // ($lead.windows[0] // null)
           ) as $primary_win
         | (
-            ($lead.windows | map(select(.window == "weekly")) | first)
-            // ($lead.windows | map(select(. != $primary_win)) | sort_by(-.usedPercent) | first)
+            ($gemini_windows | map(select(.window == "weekly")) | first)
+            // ($gemini_windows[1] // null)
+            // ($lead.windows | map(select(.window == "weekly")) | first)
             // null
           ) as $secondary_win
-        | (
-            ($lead.windows | map(select(. != $primary_win and . != $secondary_win)) | sort_by(-.usedPercent) | first)
-            // null
-          ) as $tertiary_win
         | {
             provider:"antigravity",
             source:"antigravity-internal",
@@ -241,7 +240,7 @@ fetch_antigravity_native() {
               loginMethod:$lead.loginMethod,
               primary:$primary_win,
               secondary:$secondary_win,
-              tertiary:$tertiary_win,
+              tertiary:null,
               updatedAt:(now | todateiso8601)
             },
             accounts:$accts,

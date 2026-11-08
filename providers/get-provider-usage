@@ -325,7 +325,7 @@ antigravity_email_from_idtoken() {
 # with a per-week and per-5-hour cap, surfacing the one closest to its limit),
 # their reset times and human "Quota resets in …" strings.
 antigravity_account_json() {
-  jq -c --arg install "$1" --arg email "$2" --arg login "$3" --arg include_all "${ANTIGRAVITY_INCLUDE_ALL_GROUPS:-0}" '
+  jq -c --arg install "$1" --arg email "$2" --arg login "$3" '
     def clamp: if type != "number" then 0 elif . < 0 then 0 elif . > 1 then 1 else . end;
     def num: (tonumber? // null);
     def fam: (.displayName // .bucketId // "Model") | gsub("\\s*\\([^)]*\\)\\s*$"; "");
@@ -353,7 +353,6 @@ antigravity_account_json() {
       [
         .groups[]? as $g
         | group_label($g) as $gl
-        | select(($include_all == "1") or ($gl | test("^Gemini Models|Gemini"; "i") and ($gl | test("Argon"; "i") | not)))
         | $g.buckets[]?
         | (window_kind) as $kind
         | select($kind != null)

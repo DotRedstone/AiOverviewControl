@@ -211,14 +211,15 @@ printf '%s' "$PARTIAL" | jq -e '
   and .[0].error == null
   and (.[0].accounts | length) == 1
   and .[0].accounts[0].email == "one@example.invalid"
-  and (.[0].accounts[0].windows | length) == 2
+  and (.[0].accounts[0].windows | length) == 4
   and ([.[0].accounts[0].windows[].name] | index("Gemini Models (5h)")) != null
   and ([.[0].accounts[0].windows[].name] | index("Gemini Models (Weekly)")) != null
-  and ([.[0].accounts[0].windows[].name] | index("Claude & OpenAI Models (5h)")) == null
+  and ([.[0].accounts[0].windows[].name] | index("Claude & OpenAI Models (5h)")) != null
   and .[0].usage.primary.name == "Gemini Models (5h)"
   and .[0].usage.primary.usedPercent == 20
   and .[0].usage.secondary.name == "Gemini Models (Weekly)"
   and .[0].usage.secondary.usedPercent == 70
+  and .[0].usage.tertiary == null
   and (.[0].accountErrors | length) == 1
   and .[0].accountErrors[0].email == "two@example.invalid"
   and .[0].accountErrors[0].code == 429
@@ -244,7 +245,7 @@ printf '%s' "$FILE_FALLBACK" | jq -e '
   and (.[0].accounts | length) == 1
   and .[0].accounts[0].install == "CLI file"
   and .[0].accounts[0].email == "two@example.invalid"
-  and (.[0].accounts[0].windows | length) == 2
+  and (.[0].accounts[0].windows | length) == 4
 ' >/dev/null
 
 # A summary-shaped response with no numeric quota must fail explicitly rather
